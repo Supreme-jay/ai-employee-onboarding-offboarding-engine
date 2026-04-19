@@ -1,0 +1,424 @@
+{
+  "name": "On Boarding Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk",
+          "mode": "list",
+          "cachedResultName": "HR New Hires",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk/edit#gid=0"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        0
+      ],
+      "id": "90026f8f-8c49-4763-baf4-324db3aa8eb3",
+      "name": "Google Sheets Trigger",
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "X5d5Iu6Zvl6nza9U",
+          "name": "Google Sheets Trigger account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "adb199d5-ea6c-4771-9433-8bbb7becbc26",
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Hired",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -656,
+        0
+      ],
+      "id": "3009da30-830c-46f8-8644-6a3d5080c1cd",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"temperature\": 0.7,\n  \"max_tokens\": 800,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert HR onboarding specialist. Generate a friendly, practical 30-day onboarding checklist for a new employee. Format as clean numbered sections: DAY 1 SETUP (items), WEEK 1 GOALS (items), WEEK 2-4 MILESTONES (items). Make it specific to their role and department. Keep it warm, encouraging, and actionable.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a 30-day onboarding plan for:\\nName: {{$json.Name}}\\nRole: {{$json.Role}}\\nDepartment: {{$json.Department}}\\nManager: {{$json.Manager}}\\nStart Date: {{ $json['Start Date'] }}\"\n    }\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -432,
+        -224
+      ],
+      "id": "4cd4e311-792f-4dc3-9e09-da4433352f08",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "0DcW89UBjD4xU1q2",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = $input.first().json;\nconst checklist = aiResponse.choices[0].message.content;\nconst hire = $('Google Sheets Trigger').first().json;\n\nreturn [{\n  json: {\n    name:        hire.Name,\n    email:       hire.Email,\n    role:        hire.Role,\n    department:  hire.Department,\n    start_date:  hire.StartDate,\n    manager:     hire.Manager,\n    checklist:   checklist,\n    employee_id: 'EMP-' + Date.now(),\n    onboarded_at: new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -224
+      ],
+      "id": "84ff1ca3-9612-4191-b00a-2e04fccf67e6",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Welcome to the team, {{ $json.name }}! Your onboarding guide inside",
+        "message": "=<h2 style='color:#1a56db'>Welcome, {{ $json.name }}!</h2>\n<p>We're thrilled to have you join the <strong>{{ $json.department }}</strong> team\nas our new <strong>{{ $json.role }}</strong>.</p>\n<p>Your manager <strong>{{ $json.manager }}</strong> will reach out shortly.</p>\n<p>Your Employee ID: <strong>{{ $json.employee_id }}</strong></p>\n<h3>Your 30-Day Onboarding Plan</h3>\n<pre style='background:#f0f9ff;padding:16px;border-radius:8px;font-size:14px'>{{ $json.checklist }}</pre>\n<p style='color:#6b7280;font-size:13px'>Start date: {{ $json.start_date }}</p>\n<br><p>See you soon! 🎉</p>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -16,
+        -224
+      ],
+      "id": "6697b360-063b-4620-9ca5-8d4bcd771e0d",
+      "name": "Send a message",
+      "webhookId": "d3015c54-eaa1-4c3b-b79c-ef65e904a8c6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "mGRlfUTH4l1NC5jY",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "hr-onboarding",
+          "mode": "name"
+        },
+        "text": "=New hire onboarded successfully\n\nName: {{ $('Code in JavaScript').item.json.name }}\nRole: {{ $('Code in JavaScript').item.json.role }}\nDepartment: {{ $('Code in JavaScript').item.json.department }}\nStart Date: {{ $('Google Sheets Trigger').item.json['Start Date'] }}\nManager: {{ $json.manager }}\nEmployee ID: {{ $json.employee_id }}\n\nWelcome email with 30-day plan has been sent.\n",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        192,
+        -224
+      ],
+      "id": "46017e46-3488-4a25-b518-4ff162dda80f",
+      "name": "Send a message1",
+      "webhookId": "c69f9e72-5b68-456c-9af5-412c2c2bba25",
+      "credentials": {
+        "slackApi": {
+          "id": "jBMr2NTt68t5utLO",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk",
+          "mode": "list",
+          "cachedResultName": "HR New Hires",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/16jh4lsVfWxRLNliA2_0TObTpS-tePhFMVaESmvzhKTk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Onboarded",
+            "Name": "={{ $('Code in JavaScript').item.json.name }}",
+            "Email": "={{ $('Code in JavaScript').item.json.email }}",
+            "Role": "={{ $('Code in JavaScript').item.json.role }}",
+            "Department": "={{ $('Code in JavaScript').item.json.department }}",
+            "Manager": "={{ $('Code in JavaScript').item.json.manager }}"
+          },
+          "matchingColumns": [
+            "Status"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Role",
+              "displayName": "Role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Department",
+              "displayName": "Department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Start Date",
+              "displayName": "Start Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Manager",
+              "displayName": "Manager",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "End Date",
+              "displayName": "End Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -48,
+        96
+      ],
+      "id": "e62b0d96-f16f-4eb3-8190-395a788ac852",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "vjI5a3n83bDQYOqe",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "databaseId": {
+          "__rl": true,
+          "value": "https://www.notion.so/34408ad2c53b8070b0f4ef624bd7082f?v=34408ad2c53b804fbe12000cb5bbbace",
+          "mode": "url"
+        },
+        "title": "={{ $('Code in JavaScript').item.json.name }} — Onboarding",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        -224
+      ],
+      "id": "7d56a401-84d5-4c07-9cf2-260492ae317e",
+      "name": "Create a database page",
+      "credentials": {
+        "notionApi": {
+          "id": "F31Bf3Cy7LnLfHEF",
+          "name": "Notion account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Sheets Trigger": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message1": {
+      "main": [
+        [
+          {
+            "node": "Create a database page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a database page": {
+      "main": [
+        [
+          {
+            "node": "Update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "b3f7125d-3edb-4b17-a040-224699861889",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "d361637f1d70339ec01cb1a27fd403eac27fb61b561b025cd2a653356b47936c"
+  },
+  "id": "NcsdF4RQRw69ChZkVSEd9",
+  "tags": []
+}
